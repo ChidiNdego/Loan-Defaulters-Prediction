@@ -1,0 +1,25 @@
+with Tab1 as (SELECT *
+FROM `propane-highway-202915.arise.ChallengeLoanInfo`
+WHERE payout_status = 'SUCCESS' AND loanType = 'paylater' AND (loanTerm = 60 OR loanTerm = 90 OR loanTerm = 180)
+),
+TempTab as (
+SELECT loanId as Id, MIN(dueDate) as Dd
+FROM `propane-highway-202915.arise.ChallengeRepaymentsInfo`
+GROUP BY loanId
+),
+Tab2 as (SELECT *,
+if (settleDays > 7 OR settleDays is NULL , 1, 0) as firstPaymentDefault
+FROM TempTab as TT
+LEFT JOIN `propane-highway-202915.arise.ChallengeRepaymentsInfo` as CRI on  (TT.Id = CRI.loanId)
+WHERE TT.Dd = CRI.dueDate
+),
+Tab3 as (SELECT T2.loanId, firstPaymentDefault, paymentRatio as firstPaymentRatio,
+if (( DATE_DIFF (CAST (paidAt AS DATE), CAST (CLI.dueDate AS DATE), DAY) > 7) OR (CLI.paidAt is NULL), 1, 0)  as loanDefault
+FROM `propane-highway-202915.arise.ChallengeLoanInfo` as CLI
+JOIN Tab2 as T2 on T2.loanId = CLI.loanId
+)
+SELECT T1.loanId, T3.firstPaymentDefault, T3.firstPaymentRatio, T3.loanDefault,max_amount_taken, max_tenor_taken, loanTerm,
+loanAmount,interestRate,dueDate,clientId,clientIncome,incomeVerified,clientAge,clientGender,clientMaritalStatus,clientLoanPurpose,
+clientResidentialStauts,clientState,clientTimeAtEmployer,clientNumberPhoneCOntacts,clientAvgCallsPerDay,loanNumber
+FROM Tab1 as T1
+LEFT JOIN Tab3 as T3 on T3.loanId =  T1.loanId
